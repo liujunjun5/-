@@ -765,3 +765,260 @@ e.printStackTrace();
 
 通过以上步骤，对象obj会被序列化并写入到文件"object.ser"中，然后通过反序列化操作，从文件中读取字节流并恢复为对象newObject。这种方式可以方便地将对象转换为字节流用于持久化存储、网络传输等操作。需要注意的是，要确保类实现了Serializable接口，并且所有成员变量都是Serializable地才能被正确序列化。
 
+
+# 设计模式
+## volatile和sychronized如何实现单例模式
+```plain
+public class SingleTon{
+
+  //volatile关键字修饰变量 防止指令重排序
+  private static volatile SingleTon instance = null;
+  private SingleTon(){}
+
+  public static SingleTon getInstance(){
+    if(instance == null){
+      //同步代码块，只有在第一次获取对象地时候会执行到，第二次及以后访问时instance变量均非null故不会往下执行了  直接返回了
+      synchronized(SingleTon.class){
+        if(instance == null){
+          instance=new SingleTon();
+        }
+      }
+    }
+    return instance;
+  }
+}
+```
+
+正确地双重检查锁定模式需要使用volatile。volatile包含两个功能。
+
++ 保证可见性：使用volatile定义地变量，将会保证对所有线程的可见性。
++ 禁止指令重排序优化
++ 由于volatile禁止对象创建时指令之间重排序，所以其他线程不会访问到一个为初始化的对象，从而保证安全性。
+
+
+
+## 代理模式和匹配模式有什么区别
++ 目的不同：代理模式主要关注控制对象的访问，而适配器模式则用于接口转换，使不兼容的类能够一起工作
++ 结构不同：代理模式一般包含抽象主题、真实主题和代理三个角色，适配器模式包含目标接口、适配器和被适配者三个角色
++ 应用场景不同：代理模式常用于添加额外功能或控制对对象的访问，适配器模式常用于让不兼容的接口协同工作。
+
+
+
+## 责任链模式使用场景是什么？
+责任链模式的核心是让多个对象都有机会处理同一个请求，从而解耦请求的发送者和接受者。它的典型使用场景可以概括为：当你想避免将请求的发送者与特定接受者硬编码在一起，并希望动态地组织或调整处理流程时。
+
+核心使用场景：
+
+1. 请求需要经过多个对象按序处理（如审批/工作流系统）
+2. 请求地接收者不明确或有多种可能（如事件/日志分级处理）
+3. 需要动态指定或调整处理流程（如游戏中的伤害计算）
+
+代码实例：
+
+```plain
+// 1. 抽象处理器
+abstract class Approver {
+    protected Approver nextApprover; // 指向下一个处理者
+    protected String name;
+    protected double approvalLimit; // 审批额度上限
+
+    public Approver(String name, double limit) {
+        this.name = name;
+        this.approvalLimit = limit;
+    }
+
+    // 设置下一个处理者（构建链条的关键）
+    public Approver setNext(Approver next) {
+        this.nextApprover = next;
+        return next; // 支持链式调用，如 manager.setNext(director).setNext(ceo)
+    }
+
+    // 处理请求的方法
+    public void processRequest(PurchaseRequest request) {
+        if (request.getAmount() <= this.approvalLimit) {
+            // 自己能处理
+            System.out.println(name + " 审批了采购单#" + request.getNumber() + "，金额: $" + request.getAmount());
+        } else if (nextApprover != null) {
+            // 自己处理不了，交给下一个人
+            System.out.println(name + " 无法审批，转交上级 -> " + nextApprover.name);
+            nextApprover.processRequest(request);
+        } else {
+            // 没人能处理了（链条终点）
+            System.out.println("采购单#" + request.getNumber() + " 金额 $" + request.getAmount() + " 过高，无人能审批！");
+        }
+    }
+}
+
+// 2. 具体处理器
+class Manager extends Approver {
+    public Manager(String name) { super(name, 5000); }
+}
+
+class Director extends Approver {
+    public Director(String name) { super(name, 20000); }
+}
+
+class CEO extends Approver {
+    public CEO(String name) { super(name, 100000); }
+}
+
+// 3. 请求类
+class PurchaseRequest {
+    private int number;
+    private double amount;
+    // 构造函数、getter省略...
+}
+
+// 4. 客户端使用
+public class Client {
+    public static void main(String[] args) {
+        // 构建责任链：经理 -> 总监 -> CEO
+        Approver manager = new Manager("张经理");
+        Approver director = new Director("李总监");
+        Approver ceo = new CEO("王总裁");
+
+        manager.setNext(director).setNext(ceo);
+
+        // 发送不同金额的请求
+        PurchaseRequest request1 = new PurchaseRequest(1001, 3000);
+        PurchaseRequest request2 = new PurchaseRequest(1002, 15000);
+        PurchaseRequest request3 = new PurchaseRequest(1003, 80000);
+        PurchaseRequest request4 = new PurchaseRequest(1004, 200000);
+
+        manager.processRequest(request1); // 张经理处理
+        manager.processRequest(request2); // 张经理转交 -> 李总监处理
+        manager.processRequest(request3); // 张经理转交 -> 李总监转交 -> 王总裁处理
+        manager.processRequest(request4); // 链条传递到终点，无人能处理
+    }
+}
+```
+
+
+
+## 介绍一下策略模式和责任链模式，分别用在哪些场景？
+共同之处：这两个设计模式都属于行为模式，而且在实际开发中，它们往往都是为了解决同一个痛点：如何消除代码中复杂的"if-else"或"switch-case"逻辑，从而让系统更易于扩展。
+
++ 策略模式：动态切换"如何做"
+    - 定义：定义一系列算法，将每个算法封装起来，并使它们可以相互替换。它让算法的变化独立于使用它的客户端
+    - 核心场景：当系统需要在多种算法或行为中动态选择一种时。
+    - 经典用例：支付系统（用户在支付方式中选择一种）、数据导出（将一份数据导出为不同的格式）、导航计算（选择不同的路径）、折扣计算（满减、打折、返现等不同的促销策略）。
++ 责任链模式：传递请求“谁来做”
+    - 定义：将多个处理对象连成一条链，请求沿链传递。每个处理者决定自己处理或传递给下一个。它解耦了请求的发送者和接受者。
+    - 核心场景：当一个请求需要经过多个对象按序处理，或接收者不明确需要动态寻找时。
+    - 经典用例：审批工作流、Web过滤器链、日志/异常处理、GUI事件传播
+
+
+
+# I/O
+## Java怎么实现网络IO高并发编程？
+可以用Java NIO，是一种同步非阻塞的I/O模型，也是I/O多路复用的基础。
+
+补充：
+
++ 传统的BIO里面socket.read()，如果TCP RecvBuffer里没有数据，函数会一直阻塞，直到收到数据，返回读到的数据，如果使用BIO要想要并发处理多个客户端的I/O，那么会使用多线程模式，一个线程专门处理一个客户端IO，这种模式随着客户端越来越多，所需要创建的线程也越来越多，会急剧消耗系统的性能
++ NIO时基于I/O多路复用实现的，它可以只用一个线程处理多个客户端I/O，如果你需要同时管理成千上万的链接，但是每个连接只发送少量数据，例如一个聊天服务器，用NIO实现会更好一些。
+
+
+
+## BIO、NIO、AIO区别是什么
++ BIO(blocking IO)：就是传统的java.io包，它是基于流模型实现的，交互的方式是同步、阻塞方式，也就是说在读入输入流或者输出流时，在读完动作完成之前，线程会一直阻塞在那里，它们之间的调用是可靠的线性顺序。优点是代码比较简单、直观；缺点是IO的效率和拓展性很低。容易成为应用性能瓶颈
++ NIO(non-blocking IO)：Java1.4引入的java.nio包，提供了Channel、Selector、Buffer等新抽象，可以构建多路复用的、同步非阻塞IO程序，同时提供了更接近操作系统底层高性能的数据操作方式
++ AIO（Asynchronous IO）:是Java1.7之后引入的包，是NIO的升级版本，提供了异步非阻塞的IO操作方式，所以人们叫它AIO，异步IO是基于事件和回调机制实现的，也就是应用操作之后会直接返回，不会堵塞在那里，当后台处理完成，操作系统会通知相应的线程进行后续的操作
+
+简答概括就是：
+
++ BIO：一个连接一个线程，全程阻塞
++ NIO：一个线程处理多个连接，轮询事件
++ AIO：一个线程处理多个连接，回调通知
+
+
+
+## NIO是怎么实现的
+NIO是一种同步非阻塞的IO模型，所以也可以叫NON-BLockINGIO。同步是指线程不断轮询IO事件是否就绪，非阻塞是指线程在等待IO的时候，可以同时做其他任务。
+
+同步的核心就是Selector(I/O多路复用)，Selector代替了线程本身轮询IO事件，避免了阻塞同时减少了不必要的线程消耗；非阻塞的核心就是通道和缓冲区，当IO事件就绪时，可以通过写到缓冲区，保证IO的成功，而无需线程阻塞式地等待
+
+NIO主要有三大核心部分：Channel(通道)，Buffer(缓冲区)，Selector。传统IO基于字节流和字符流进行操作，而NIO基于Channel和Buffer进行操作，数据总是从通道读取到缓冲区中，或者从缓冲区写入到通道中。
+
+Selector(选择区)用于 监听多个通道的事件(比如：连接打开，数据到达)。因此，单个线程可以监听多个数据通道。
+
+
+
+从另一种层面的回答：  
+Java NIO的实现，本质时通过Selector这个"中央事件监控器"，利用操作系统提供的epoll/kqueue等多路复用系统调用，实现了"一个线程监控万级连接，只处理真正有数据到来的连接"的高效模型。它避免了BIO中为每个连接创建一个线程的巨大开销，这是支撑现代高并发服务器的核心技术基石。
+
+
+
+## 有哪个框架用到了NIO
+Netty，其主要是用于构建高性能网络服务器/客户端，特点为NIO领域事实标准，异步事件驱动，API友好，广泛用于RPC、游戏、即时通讯。
+
+追问NIO的实现
+
+Netty 的 I/O 模型基于同步非阻塞I/O实现，其核心是依赖于 NIO 提供的多路复用器 Selector。在 Linux 系统上采用 epoll 模式后，每个 EventLoop 线程可以负责一个 Selector 的轮询。当有连接或数据就绪时，EventLoop 作为事件分发器，会将 I/O 事件分发给对应的 ChannelPipeline 中的处理器进行处理。
+
+事件分发器的架构主要有两种设计模式：Reactor 和 Proactor。
+
++ Reactor 模式 基于同步非阻塞I/O。应用程序负责监听就绪事件，并在事件就绪后亲自完成数据的读写操作。它的实现相对直观，资源消耗可控。为了避免耗时的业务逻辑阻塞网络线程，现代 Reactor 实现（如 Netty）的通用做法是：将网络I/O处理与业务处理分离——EventLoop 线程仅负责高效的字节流读写和编解码，而将具体的业务逻辑（如数据库查询、复杂计算）提交给独立的业务线程池执行，从而保证高并发下的响应能力。
++ Proactor 模式 则基于异步I/O。应用程序发起异步读写请求后，由操作系统内核负责完成整个I/O操作（包括数据在内核与用户空间之间的拷贝），操作完成后才通知应用程序。这种模式理论上效率更高，但实现复杂，且严重依赖操作系统底层的异步I/O支持。
+
+
+
+目前，主流的跨平台高性能网络框架（包括 Netty、Nginx）主要采用 Reactor 模式，并依赖 epoll、kqueue 等高效的多路复用系统调用来实现。这是因为在 Linux 等主流服务器操作系统上，成熟的异步I/O支持（如针对网络套接字的 AIO）长期不够完善，而 Reactor 模式凭借其成熟的生态、卓越的性能和良好的可调试性，已成为业界构建百万级并发应用的事实标准。
+
+
+
+# 其他
+## 有一个学生类，想按照分数排序，再按学号排序，应该怎么做？
+可以使用Comparable接口来实现按照分数排序，在按照学号排序。首先在学生类中实现Comparable接口，并重写compareTo方法，然后在compareTo方法中实现按照分数排序和按照学号排序的逻辑。
+
+```plain
+public class Student implements Comparable<Student>{
+  private int id;
+  private int score;
+
+  @Override
+  public int compareTo(Student other){
+    if(this.score!=other.score){
+      return Integer.compare(other.score,this.score);
+    }else{
+      return Integer.compare(this.id,other.id);
+    }
+  }
+}
+```
+
+然后在需要对学生列表进行排序的地方，使用Collections.sort()方法对学生列表进行排序即可：
+
+```plain
+List<Student> students=new ArrayList<>();
+Collections.sort(students);//使用Collections.sort(students)时，会按照Student的compareTo方法进行排序。
+```
+
+
+
+## Native方法解释一下
+在Java中，native方法是一种特殊类型的方法，它允许Java代码调用外部的本地代码，即用C、C++或其他语言编写的代码。native关键字是Java语言中的一种声明，用于标记一个方法的实现将在外部定义。
+
+在Java类中，native方法看起来与其他方法相似，只是其他方法体由native关键字替代，没有实际的实现代码。例如：
+
+```plain
+public class NativeExample{
+  public native void nativeMethod();
+}
+```
+
+如果要实现native方法，需要完成以下步骤：
+
+1. 生成JNI头文件：使用javah工具从你的Java类生成C/C++的头文件，这头文件包含了所有native方法的原型
+2. 编写本地代码：使用C/C++编写本地方法的实现，并确保方法签名与生成的头文件中的原型匹配。
+3. 编译本地代码：将C/C++代码编译成动态链接库（DLL，在Windows上），共享库（SO，在Linux上）
+4. 加载本地库：在Java程序中，使用System.loadLibrary()方法加载你编译好的本地库，这样JVM就能找到并调用native方法的实现了
+
+
+
+## Java进程是怎么跟操作系统交互的
+Java进程通过**JVM（Java虚拟机）** 与操作系统交互：JVM作为核心中介，将Java代码中的操作（如文件读写、网络通信、线程创建）转换为对操作系统**系统调用**的请求。例如，当Java程序执行I/O或内存分配时，JVM会通过其本地方法库（利用JNI技术）调用底层C/C++代码，这些代码最终向操作系统内核发起 `read`、`write`、`mmap` 等系统调用，从而访问硬件资源（CPU、内存、磁盘、网络）。同时，JVM依赖操作系统管理线程调度、内存映射等基础功能，而操作系统则将处理结果或事件（如数据就绪、中断）通过JVM返回给Java应用程序。整个过程确保了Java的跨平台性，所有底层交互均由JVM统一封装和处理。
+
+
+
+
