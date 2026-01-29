@@ -249,6 +249,284 @@ class SharedResource {
 
 
 
+# 并发安全
+## juc包下常用的类
+线程池相关：
+
++ ThreadPoolExecutor：最核心的线程池类，用于创建和管理线程池。通过它可以灵活地配置线程池参数，如核心线程数、最大线程数、任务队列等，以满足不同的并发处理需求。
++ Executors：线程池工厂类，提供了一系列静态方法来创建不同类型的线程池，如newFixedThreadPool(创建固定线程数的线程池)、newCachedThreadPool(创建可缓存线程池)、newSingleThreadExecutor(创建单线程线程池)等，方便开发者快速创建线程池。
+
+并发集合类：
+
++ ConCurrentHashMap：线性安全的哈希映射表，用于在多线程环境下高效地存储和访问键值对。采用了分段锁等技术。
++ CopyOnWriteArrayList：线程安全的列表，在对列表进行修改操作时，会创建一个新的底层数组，将修改数组操作应用到新数组上，而读操作任然可以在旧数组上进行，从而实现了读写分离，提高了并发读的性能，适用于读多写少的场景。
+
+同步工具类：
+
++ CountDownLatch：允许一个或多个线程等待其他一组线程完成操作后再继续执行。通过计数器来实现。常用于多个线程完成各自任务后，再进行汇总或下一步操作的场景
++ CyclicBarrier：让一组线程相互等待，直到所有线程都到达某个屏障点后，在一起继续执行。与CountDownLatch不同的是，CyclicBarrier可以重复使用，当所有线程都通过屏障后，计数器会重置，可以再次用于下一轮的等待。适用于多个线程需要协同工作，在某个阶段完成后再一起进入下一个阶段的场景。
++ Semaphore：信号量，用于控制同时访问某个资源的线程数量。它维护了一个许可计数器，线程在访问资源前需要获取许可。
+
+原子类：
+
++ AtomicInteger：原子整数类，提供了对整数类型的原子操作，如自增、自减、比较并交换等。通过硬件级别的原子指令来保证操作的原子性和线程安全性，避免了使用锁带来的性能开销，在多线程环境下对整数进行计数、状态标记等操作非常方便。
++ AtomicReference：原子引用类型，用于对对象引用进行原子操作。可以保证在多线程环境下，对对象的更新操作是原子性的，即要么全部成功，要么全部失败不会出现数据不一致的情况。常用于实现无锁数据结构或需要 对对象进行原子更新的场景。
+
+
+
+## 怎么保证线程安全
++ synchronized关键字：可以使用synchronized关键字来同步代码块或方法，确保同一时刻只有一个线程可以访问这些代码。对象锁是通过synchronized关键字锁定对象的监视器(monitor)来实现的。
++ volatile关键字：用于变量，确定所有线程看到的是该变量的最新值，而不是可能存储在本地寄存器中的副本。
++ Lock接口和ReentrantLock类：java.util.concurrent.locks.lock接口提供了比synchronized更强大的锁定机制，ReentrantLock是一个实现该接口的例子，提供了更灵活的锁管理和更高的性能。
++ 原子类：java并发库(java.util.concurrrent.atomic)提供了原子类，如AtomicInteger、AtomicLong等，这些类提供了原子操作，可以用于更新基本类型的变量而无需额外的同步。
++ 线程局部变量：ThreadLocal类可以为每个线程提供独立的变量副本，这样每个线程都拥有自己的变量，消除了竞争条件。
++ 并发集合：使用java.util.concurrrent包中的线程安全集合，如ConcurrrentHashMap、ConcurrrentLinkedQueue等，这些集合内部已经实现了线程安全的逻辑。
++ JUC工具类：使用java.util.concurrent包中的一些工具类可以用于控制线程间的同步和协作。例如：Semaphore和CyclicBarrier等
+
+
+
+## Java中有哪些常用的锁，在什么场景下使用？
+Java中的锁是用于管理多线程并发访问共享资源的关键机制。锁可以确保在任意给定时间内只有一个线程可以访问特定的资源，从而避免数据竞争和不一致性。Java提供了多种锁机制，可以分为一下几类：
+
++ 内置锁(synchronized)：Java中的synchronized关键字是内置锁机制的基础，可以用于方法或代码块。synchronized加锁时有无锁、偏向锁、轻量级锁和重量级锁几个级别。偏向锁用于当一个线程进入同步块时，如果没有其他线程竞争，就会使用偏向锁，以减少锁的开销。轻量级锁使用线程栈上的数据结构，避免了操作系统级别的锁。重量级锁则涉及操作系统级的互斥锁
++ ReentrantLock：java.util.concurrent.locks.ReentrantLock是一个显式的锁类，提供了比synchronized更高级的功能，如可中断的锁等待、定时锁等待、公平锁选项等。ReentrantLock使用lock()和unlock()方法来获取和释放锁。其中，公平锁按照线程请求锁的顺序来分配锁，保证了锁分配的公平性，但可能增加锁的等待时间，非公平锁不保证锁分配的公平性，但可能增加锁的等待时间。非公平锁不保证锁分配的顺序，可以减少锁的竞争，提高性能但可能造成某些线程的饥饿。
++ 读写锁：java.util.concurrent.locks.ReadWriteLock接口定义了一种锁，允许多个读者同时访问共享资源，但只允许一个写入者。读写锁通常用于读取远多于写入的情况，以提高并发性
++ 乐观锁和悲观锁：悲观锁(Pessimistic Locking)通常指在访问数据前就锁定资源，假设最坏的情况，即数据很可能被其他线程修改。synchronized和ReentrantLock都是悲观锁的例子。乐观锁常使用版本号或时间戳来实现。
++ 自旋锁：自旋锁是一种锁机制，线程等待锁时会持续循环检查锁是否可用，而不是放弃CPU并阻塞。通常可以使用CAS来实现。这在锁等待时间很短的情况下可以提高性能，但过度自旋会很浪费CPU资源。
+
+
+
+## 怎么在实践中用锁的？
+Java提供了多种锁的实现，包括synchronized关键字、java.util.concurrent.locks包下的Lock接口及其具体实现如ReentrantLock、ReadWriteLock等。以下就是这些锁的使用方式：
+
+1. synchronized：可以用于方法或代码块，它是Java中最早的锁实现。
+2. 使用Lock接口：Lock接口提供了比synchronized更灵活的锁操作，包括尝试锁、可中断锁、定时锁等。ReentrantLock是Lock接口的一个实现。
+
+```plain
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
+
+public class Counter{
+  private Lock lock = new ReentrantLock();
+  private int count = 0;
+
+  public void increment(){
+    lock.lock();
+    try{
+      count++;
+    } finally{
+      lock.unlock();
+    }
+  }
+}
+```
+
+3. 使用ReadWriteLock：它提供了一种读写锁的实现，允许多个多操作同时进行，但写操作是独占的。
+
+```plain
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
+
+public class Cache{
+  private ReadWriteLock lock = new ReentrantReadWriteLock();
+  private Lock readLock = lock.readLock();
+  private Lock writeLock = lock.writeLock();
+  private Object date;
+
+  public Object readData(){
+    readLock.lock();
+    try{
+      return data;
+    } finally {
+      readLock.unlock();
+    }
+  }
+
+  public void writeData(Object newData){
+    writeLock.lock();
+    try{
+      data=newData;
+    } finally{
+      writeLock.unlock();
+    }
+  }
+}
+```
+
+
+
+## Java并发工具有哪些？
+Java中一些常用的并发工具，它们位于java.util.concurrent包中，常见的有：
+
++ CountDownLatch：CountDownLatch是一个同步辅助类，它允许一个或多个线程等待其他线程完成操作。它使用一个计数器进行初始化，调用countDown()方法会使计数器减一，当计数器的值减为0时，等待的线程会被唤醒。可以把他想象成一个计时器，当倒计时结束(计数器为0)时，等待的事件就会发生。
++ CyclicBarrier：CyclicBarrier允许一组线程相互等待，直到到达一个公共的屏障点。当所有线程都达到这个屏障点后，它们可以继续执行后续操作，并且这个屏障可以被重置循环使用。与CountDownLatch不同，CyclicBarrier侧重于线程间的相互等待，而不是等待某些操作完成。
++ Semaphore：Semaphore是一个计数信号量，用于控制同时访问某个共享资源的线程数量。通过acquire()方法获取许可，使用release()方法释放许可。如果没有许可可用，线程将会被阻塞，直到有许可被释放。可以用来限制对某些资源(如数据库连接池、文件操作等)的并发访问量。
++ Future和Callable：Callable是一个类似于Runnable的接口，但它可以返回结果，并且可以抛出异常。Future用于表示一个异步计算的结果，可以通过它来获取Callable任务的执行结果 或取消任务。
++ ConcurrentHashMap：ConcurrentHashMap是一个线程安全的哈希表，它允许多个线程同时进行读操作，在一定程度上支持并发的修改操作，避免了HashMap在多线程环境下需要使用synchronized或Collections.synchronizedMap()进行同步的性能问题。
+
+
+
+## CountDownLatch是做什么的
+CountDownLatch是Java并发包(java.util.concurrent)中的一个同步工具类，用于让一个或多个线程等待其他线程完成操作后再继续执行。
+
+其核心是通过一个计数器(Counter)实现线程间的协调，常用于多线程任务的分阶段控制或主线程等待多个子线程就绪的场景，核心原理：
+
++ 初始化计数器：创建CountDownLatch时指定一个初始计数值
++ 等待线程阻塞：调用await()的线程会被阻塞，直到计数器变为0.
++ 任务完成通知：其他线程完成任务后调用countDown()，使计数器减1.
++ 唤醒等待线程：当计数器减到0时，所有等待的线程会被唤醒
+
+
+
+## synchronized和ReentrantLock及其应用场景
+### synchronized工作原理：
+synchronized是Java提供的原子性内置锁，这种内置的并且使用者看不到的锁也被称为监视锁。
+
+使用synchronized之后，会在编译之后在同步的代码块前后加上monitorenter和monitorexit字节码指令，它依赖操作系统底层互斥锁实现。它的作用主要就是实现原子性操作和解决共享变量的内存可见性问题。
+
+执行monitorenter指令时会尝试获取对象锁，如果对象没有被锁定或者已经获得了锁，锁的计数器加1.此时其他竞争锁的线程则会进入等待队列中。执行monitorexit指令时会把计数器-1，当计数器值为0时，则锁释放，处于等待队列中的线程在继续竞争锁。
+
+synchronized是排它锁，当一个线程获得锁之后，其他线程必须等待该线程释放锁后才能获得锁，而且由于Java中的线程和在系统原生线程是一一对应的，线程被阻塞或者唤醒时会从用户态切换到内核态，这种转换非常消耗性能。
+
+从内存语义来说，加锁的过程会清除工作内存中的共享变量，再从主内存读取，而释放锁的过程则是将工作内存中的共享变量写回主内存。
+
+
+
+### ReentrantLock工作原理
+ReentrantLock的底层实现主要依赖于AbstractQueuedSynchronized(AQS)这个抽象类。AQS是一个提供了基本同步机制的框架，其中包括了队列、状态值等。
+
+ReentrantLock在AQS的基础上通过内部类Sync来实现具体的锁操作。不同的Sync子类实现了公平锁和非公平锁的不同逻辑：
+
++ 可中断性：ReentrantLock实现了可中断性，这意味着线程在等待锁的过程中，可以被其他线程中断而提前结束等待。在底层，ReentrantLock使用了与LockSupport.park()和LockSupport.unpark()相关的机制来实现可中断性。
++ 设置超时时间：ReentrantLock支持在尝试获取 锁时设置超时时间，即等待一定时间后如果还未获得锁，则放弃锁的获取。这是通过内部的tryAcquireNanos方法来实现的。
++ 公平锁和非公平锁：在直接创建ReentrantLock对像时，默认情况下是非公平锁。公平锁是按照线程等待的顺序来获取锁，而非公平锁则允许多个线程在同一时刻来竞争锁，不考虑他们申请锁的顺序。公平锁可以通过在创建ReentrantLock时传入true来设置。
++ 多个条件变量：ReentrantLock支持多个条件变量，每个条件变量可以与一个ReentrantLock关联。这使得线程可以更灵活地进行等待和唤醒操作，而不仅仅是基于对象监视器的wait()和notify()。多个条件变量的实现依赖于Condition接口。
++ 可重入性：ReentrantLock支持可重入性，即同一个线程可以多次获得同一把锁，而不会造成死锁。这是通过内部的holdCount计数来实现的。当一个线程多次获取锁时，holdCount递增，释放锁时递减，只有当holdCount为零时，其他线程才有机会获取锁。
+
+### 应用场景的区别
+synchronized：
+
++ 简单同步需求：需要对代码块或方法进行简单的同步控制时，synchronized是一个很好的选择。它使用起来简单，不需要额外的资源管理，因为锁会在方法退出或代码块执行完毕后自动释放。
++ 代码块同步：对特定代码段进行同步，而不是整个方法，可以使用synchronized代码块。这可以更精细地控制同步的范围，从而减少锁的持有时间，提高并发性能。
++ 内置锁的使用：synchronized关键字使用对象的内置锁(也称为监视器锁)，这需要使用对象作为锁对象的情况下很有用，尤其是在对象作为锁对象的情况下很有用，尤其是在对象状态与锁保护的代码紧密相关时。
+
+ReentrantLock：
+
++ 高级锁功能需求：ReentrantLock提供了synchronized所不具备的高级功能，如公平锁、响应中断、定时锁尝试、以及多个条件变量。当你需要这些功能时，ReentrantLock是更好的选择。
++ 性能优化：在高度竞争的环境中，ReentrantLock可以提供比Synchronized更好的性能，因为它提供了更细粒度的控制，如尝试锁定和定时锁定，可以减少线程阻塞的可能性。
++ 复杂同步结构：需要更复杂的同步结构，如需要多个条件变量来协调线程之间的通信时，ReentrantLock及其配套的Condition对象可以提供更灵活的解决方案。
+
+综上，Synchronized适用于简单同步需求和不需要额外锁功能的场景，而ReentrantLock适用于需要更高级锁功能、性能优化或复杂同步逻辑的情况。
+
+
+
+## 除了用Synchronized，还有什么方法可以实现线程同步？
++ 使用ReentrantLock类：ReentrantLock是一个可重入的互斥锁，相比Synchronized提供了更灵活的锁定和解锁操作。它还支持公平锁和非公平锁，以及可以响应中断的锁获取操作。
++ 使用volatile关键字：虽然volatile不是一种锁机制，但它可以确保变量的可见性。当一个变量被声明为volatile后，线程将直接从主内存中读取该变量的值，这样就能保证线程间变量的可见性。但它不具备原子性。
++ 使用Atomic类：Java提供了一系列的原子类，例如AtomicInteger、AtomicLong、AtomicReference等，用于实现对单个变量的原子操作，这些类在实现细节上利用了CAS（Compare-And-Swap）算法，可以用来实现无锁的线程安全。
+
+
+
+## Synchronized锁静态方法和普通方法区别？
+锁多想不同：
+
++ 普通方法：锁的是当前对象实例(this)。同一对像实例的Synchronized普通方法，同一时间只能被一个线程访问；不同对象实例间互不影响，可被不同线程同时访问各自的同步普通方法。
++ 静态方法：锁的是当前类的Class对。由于类的Class对象全局唯一，无论多少个对象实例，该静态同步方法同一时间只能被一个线程访问。
+
+作用范围不同：
+
++ 普通方法：仅对同一对象实例的同步方法调用互斥，不同对象实例的同步普通方法可并行执行。
++ 静态方法：对整个类的所有实例的该静态方法调用都互斥，一个线程进入静态同步方法，其他线程无法进入同一类任何实例的该方法。
+
+多实例场景影响不同：
+
++ 普通方法：多线程访问不同对象实例的同步方法时，可同时执行。
++ 静态方法：不管有多少对象实例，同一时间仅一个线程能执行该静态同步方法。
+
+
+
+## Synchronized和ReentrantLock区别
+Synchronized和ReentrantLock是Java中提供的可重入锁：
+
++ 用法不同：Synchronized可用来修饰普通方法、静态方法和代码块，而ReentrantLock只能用在代码块上
++ 获取锁和释放锁方式不同：Synchronized会自动加锁和释放锁，当进入Synchronized修饰的代码块之后会自动加锁，当离开Synchronized的代码段之后会自动释放锁。而ReentrantLock需要手动加锁和释放锁。
++ 锁类型不同：Synchronized属于非公平锁，而ReentrantLock既可以是公平锁也可以是非公平锁。
++ 响应中断不同：ReentrantLock可以响应中断，解决死锁问题，而Synchronized不能响应中断。
++ 底层实现不同：Synchronized是JVM层面通过监视器实现的，而ReentrantLock是基于AQS实现的。
+
+
+
+## 怎么理解可重入锁？
+可重入锁是指同一个线程在获取了锁之后，可以再次重复获取该锁而不会造成死锁或其他问题。当一个线程持有锁，如果再次尝试获取该锁，就会成功获取而不会被阻塞。
+
+ReentrantLock实现可重入锁的机制是基于线程持有锁的计数器。
+
++ 当一个线程第一次获取锁时，计数器会+1，表示该线程持有了锁。在此后，每次线程成功获取锁时，都会将计数器加1。
++ 当线程释放锁时，计数器会相应地减一。只有当计数器减到0时，锁才会完全释放，其他线程才有机会获取锁
+
+这种计数器的设计使得同一个线程可以多次获取同一个锁，而不会造成死锁或其他问题。每次获取锁时，计数器jia1；每次释放锁时，计数器-1。只有当计数器减到0时，锁才会完全释放。
+
+ReentrantLock通过这种计数器的方式，实现了可重入锁的机制。他允许同一个线程多次获取同一个锁，并且能够正确地处理锁的获取和释放，避免了死锁和其他并发问题。
+
+
+
+## Synchronized支持重入吗？如何实现
+Synchronized是基于原子性的内部锁机制，是可重入的，因此在一个线程调用Synchronized方法的同时在其方法体内部调用该对象另一个Synchronized方法，也就是说一个线程得到一个对象锁后再次请求该对象锁，是允许的，这就是Synchronized的可重入性。
+
+Synchronized底层是利用计算机系统mutex Lock实现的。每一个可重入锁都会关联一个线程ID和一个锁状态status。
+
+当一个线程请求方法时，会去检查锁状态。
+
+1. 如果锁状态是0，代表该锁没有被占用，使用CAS操作获取锁，将线程ID替换成自己的线程ID。
+2. 如果锁状态不是0，代表有线程在访问该方法。此时，如果线程ID时自己的线程ID，如果是可重入锁，会将status自增1，然后获取到该锁，进而执行相应的方法；如果是非重入锁，就会进入阻塞队列等待。
+
+在释放锁时，
+
+1. 如果是可重入锁，没一次退出方法，就会将status减1，直至status的值为0，最后释放该锁。
+2. 如果非可重入锁，线程退出方法，直接就会释放该锁。
+
+
+
+## Synchronized锁升级的过程
+具体的锁升级的过程是：无锁->偏向锁->轻量级锁->重量级锁。
+
++   无锁：这是没有开启偏向锁的时候的状态，在JDK1.6之后偏向锁的默认开启，但是有一个偏向延迟，需要在JVM启动之后的多少秒之后才买开启，这个可以通过JVM参数进行设置，同时是否开启偏向锁也可以通过JVM参数设置。
++ 偏向锁：这个是在偏向锁开启之后的锁的状态，如果还没有一个线程拿到这个锁的话，这个状态叫做匿名偏向，当一个线程拿到偏向锁的时候，下次想要竞争锁只需要拿线程ID跟MarkWord当中存储的线程ID进行比较，如果线程ID相同则直接获取锁(相当于锁偏向于这个线程)，不需要进行CAS操作和将线程挂起的操作。
++ 轻量级锁：在这个状态下线程主要是通过CAS操作实现的。将对象的MarkWorld存储到线程的虚拟机栈上，然后通过CAS将对象的MarkWord的内容设置为指向Displaced Mark Word的指针，如果设置成功则获取锁。在线程出临界区的时候，也需要使用CAS，如果使用CAS替换成功则同步成功，如果失败表示有其它线程在获取锁，那么就需要在释放锁之后将被挂起的线程唤醒。
++ 重量级锁：当有两个以上的线程获取锁的时候轻量级锁就会升级为重量级锁，因为CAS如果没有成功的话始终都在自旋，进行while循环操作，这是非常消耗CPU的，但是在升级为重量级锁之后线程会被操作系统调度然后挂起，这可以节约CPU资源。
+
+
+
+## JVM对Synchronized的优化？
+Synchronized对核心优化方案主要包含一下4个：
+
++ 锁膨胀：Synchronized从无锁升级到偏向锁，再到轻量级锁，最后到重量级锁的过程，它叫做锁膨胀也叫做锁升级。JDK1.6之前，Synchronized是重量级锁，也就是说Synchronized在释放和获取锁时都会从用户态转换成内核态，而转换的效率是比较低的。但有了锁膨胀机制之后，Synchronized的状态就多了无锁、偏向锁以及轻量级锁了，这时候在进行并发操作时，大部分的场景都不需要用户态到内核态的转换了，这样就大幅的提升了Synchronized的性能。
++ 锁消除：指的是在某些情况下，JVM虚拟机如果检测不到某段代码被共享和竞争的可能性，就会将这段代码所属的同步锁消除掉，从而到底提高程序性能的目的。
++ 锁粗化：将多个连续的加锁、解锁操作连接在一起，扩展成一个范围更大的锁。
++ 自适应自旋锁：指通过自身循环，尝试获取锁的一种方式，优点在于它避免一些线程的挂起和恢复操作，因为挂起操作和恢复线程都需要从用户态转入内核态，这个过程是比较慢的，所以通过自旋的方式可以一定程度上避免挂起和恢复所造成的性能开销。
+
+
+
+## 介绍一下AQS
+AQS全称为AbstractQueueSynchronizer，是Java中的一个抽象类。AQS是一个用于构建锁、同步器、协作工具类的工具类(框架)。
+
+AQS核心思想是，如果被请求的共享资源空闲，那么就将当前请求资源的线程设置为有效的工作线程，将共享资源设置为锁定状态；如果共享资源被占用，就需要一定的阻塞等待唤醒机制来保证锁分配。这个机制主要用的是CLH队列的变体实现的，将暂时获取不到锁的线程加入到队列中。
+
+
+
+
+
+
+
+## 
+
+
+
+
+
+
+
 
 
 
